@@ -10,6 +10,8 @@ const engineStatus = document.getElementById("engine-status");
 const moveList = document.getElementById("move-list");
 const moveCount = document.getElementById("move-count");
 const difficulty = document.getElementById("difficulty");
+const playerColorSelect = document.getElementById("player-color");
+let playerColor = playerColorSelect.value;
 const promotionDialog = document.getElementById("promotion-dialog");
 
 const symbols = {
@@ -42,11 +44,15 @@ function startEngine() {
         }
 
         if (line === "readyok") {
-          engineReady = true;
-          engineStatus.textContent = "Stockfish ready";
-          updateStatus();
-        }
+  engineReady = true;
+  engineStatus.textContent = "Stockfish ready";
+  updateStatus();
 
+  if (game.turn() !== playerColor &&
+      !thinking && !game.isGameOver()) {
+    requestEngineMove();
+  }
+}
         if (line.startsWith("bestmove ") && awaitingBestMove) {
           awaitingBestMove = false;
 
@@ -98,8 +104,15 @@ function renderBoard() {
 
   for (let row = 0; row < 8; row++) {
     for (let col = 0; col < 8; col++) {
-      const squareName =
-        "abcdefgh"[col] + (8 - row);
+     const files = playerColor === "w"
+  ? "abcdefgh"
+  : "hgfedcba";
+
+const rank = playerColor === "w"
+  ? 8 - row
+  : row + 1;
+
+const squareName = files[col] + rank;
 
       const piece = game.get(squareName);
       const square = document.createElement("button");
@@ -141,14 +154,16 @@ function renderBoard() {
       if (col === 0) {
         const rank = document.createElement("span");
         rank.className = "coord rank";
-        rank.textContent = 8 - row;
+        rank.textContent = playerColor === "w"
+  ? 8 - row
+  : row + 1;
         square.appendChild(rank);
       }
 
       if (row === 7) {
         const file = document.createElement("span");
         file.className = "coord file";
-        file.textContent = "abcdefgh"[col];
+        file.textContent = files[col];
         square.appendChild(file);
       }
 
@@ -163,7 +178,7 @@ function renderBoard() {
 
 function handleSquare(square) {
   if (thinking || game.isGameOver() ||
-      game.turn() !== "w" || !engineReady) return;
+      game.turn() !== playerColor || !engineReady) return;
 
   const piece = game.get(square);
 
@@ -196,7 +211,7 @@ function handleSquare(square) {
     }
   }
 
-  selected = piece && piece.color === "w"
+  selected = piece && piece.color === playerColor
     ? square
     : null;
 
@@ -227,7 +242,7 @@ function makePlayerMove(moveData) {
 }
 
 function requestEngineMove() {
-  if (!engineReady || game.turn() !== "b" ||
+  if (!engineReady || game.turn() === playerColor ||
       game.isGameOver()) return;
 
   thinking = true;
@@ -251,9 +266,9 @@ function requestEngineMove() {
 
 function updateStatus() {
   if (game.isCheckmate()) {
-    status.textContent = game.turn() === "w"
-      ? "Checkmate — Stockfish wins"
-      : "Checkmate — You win";
+  status.textContent = game.turn() === playerColor
+    ? "Checkmate — Stockfish wins"
+    : "Checkmate — You win";
   } else if (game.isDraw()) {
     status.textContent = "Game drawn";
   } else if (thinking) {
@@ -263,9 +278,9 @@ function updateStatus() {
   } else if (game.isCheck()) {
     status.textContent = "Check!";
   } else {
-    status.textContent = game.turn() === "w"
-      ? "Your move"
-      : "Stockfish to move";
+    status.textContent = game.turn() === playerColor
+  ? "Your move"
+  : "Stockfish to move";
   }
 }
 
@@ -319,6 +334,19 @@ function restartEngine() {
   startEngine();
 }
 
+playerColorSelect.addEventListener("change", () => {
+  playerColor = playerColorSelect.value;
+
+  game.reset();
+  selected = null;
+  lastMove = null;
+  pendingPromotion = null;
+  promotionDialog.hidden = true;
+
+  restartEngine();
+  render();
+});
+
 document.getElementById("new-game").addEventListener(
   "click", () => {
     game.reset();
@@ -338,9 +366,9 @@ document.getElementById("undo").addEventListener(
 
     game.undo();
 
-    if (game.turn() === "b") {
-      game.undo();
-    }
+  if (game.turn() !== playerColor) {
+  game.undo();
+}
 
     selected = null;
     lastMove = null;
